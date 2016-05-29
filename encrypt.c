@@ -1,78 +1,64 @@
-#include <stdio.h>
-#include <string.h>
+#include "crypt.h"
 
-static int OpenFiles(/*@out@*/ FILE **i, /*@out@*/ FILE **o, /*@out@*/ char orfile[], int argc, char *argv[]);
-static int CloseFiles(FILE **i, FILE **o, char* in);
-
-int main(int argc, char *argv[])
-{
-	FILE *in, *out; char orfile[200];
-	if (OpenFiles(&in, &out, orfile, argc, argv) == EOF) return 1;
-	if (CloseFiles(&in, &out, orfile) == EOF) return 1;
-	return 0;
+void transl_in(char ch, char* str){
+	const char alph[] = "0123456789abcdef";		//Один символ заменяется 2-мя следующим образом:
+							
+	str[0] = alph[(ch >> 4) & 15];			//Его страшие 4 бита = индекс в массиве alph 1-го получ-го символа
+	str[1] = alph[ch & 15];				//Его младшие 4 бита = индекс в массиве alph 2-го получ-го символа
 }
 
-static int OpenFiles(FILE ** i, FILE **o, char orfile[], int argc, char *argv[]){
-	char fn[200]; char* in; *i = *o = NULL;
+void encrypt_unit(char* source, int num, char* encr, char* e, char* n, int key){
+	int len = num;
+	int en_len = key / 4 - 2;
 
-	fn[0] = orfile[0] = '\0';
-	if (argc == 1) {
-		(void)puts("Enter address of original file !");
-		(void)scanf("%s", fn);
-		strcpy(orfile, fn);
-		in = fn;
-		argc++;
+	while ((len--) > 0){				//Перевод в 16-ю СС
+		transl_in(source[len], &encr[en_len]);
+		en_len -= 2;
 	}
-	else {
-		in = argv[1];
-		strcpy(orfile, argv[1]);
-	}
-	if ((*i = fopen(in, "rb")) == NULL){
-		(void)puts("Unable to open original file!");
-		return EOF;
-	}
-	if (argc == 2) {
-		(void)puts("Enter name for encrypted file!");
-		(void)scanf("%s", fn);
-		in = fn;
-	}
-	else in = argv[2];
-	if ((*o = fopen(in, "wb")) == NULL){
-		(void)puts("Unable to create encrypted file!");
-		return EOF;
-	}
-	return 0;
+
+	mod(encr, e, n);				//Шифрование блока
 }
-static int CloseFiles(FILE **i, FILE **o, char in[]){
-	char ans = '\0';
 
-	if (fclose(*i) == EOF) {
-		(void)puts("Error during closing original file");
-		return EOF;
+void encrypt(FILE * source, FILE* encr, FILE* pub){
+	Header head;
+	char *e, *n, *buff, *encr_buff;
+	int num, block, key = MAX_LEN;
+
+	memory(e, MAX, char);				//Чтение ключа и его длины из файла, длина буфера устанавливается как для ключа по умолчанию
+	memory(n, key/ 4 + 2, char);			//Длина буфера для числа E = длина числа 65537 в 16-й СС + 2
+	key_fr_file(pub, e, n, &key);			
+
+	block = key / 8 - 1;
+
+	memory(buff, block + 1, char);			
+	memory(encr_buff, key / 4 + 1, char);
+	
+	encr_buff[key / 4] = 0;
+
+	fseek(source, 0, SEEK_END);			//Перем-й num присваивается размер исходного файла
+	num = ftell(source);
+	fseek(source, 0, SEEK_SET);
+
+	head.unit_num = num / block;			//Подсчёт кол-ва блоко длиной block, если длина последнего != 0, то количество блоков увеличивается на 1
+	if ((head.len_of_last = num % block) != 0)
+		head.unit_num++;
+	fwrite(&head, sizeof(Header), 1, encr);
+
+	for (int i = 0; i < head.unit_num; i++){
+		memset(buff, 0, block);
+		memset(encr_buff, '0', key/ 4);
+
+		fread(buff, block * sizeof(char), 1, source); 
+		if (i == head.unit_num - 1 && head.len_of_last != 0)
+			encrypt_unit(buff, head.len_of_last, encr_buff, e, n, key);		
+		else					//Шифрование блока
+			encrypt_unit(buff, block, encr_buff, e, n, key);
+		fprintf(encr, "%s\n", encr_buff);	//Блоки в зашифрованном файле разделены символом '\n'
+		fflush(encr);
 	}
-	if (fclose(*o) == EOF) {
-		(void)puts("Error during closing encrypted file");
-		return EOF;
-	}
-	(void)puts("Delete original file? (Y/N): ");
-	(void)getchar();
-	while (1 > 0) {
-		ans = (char)getchar();
-		if (getchar() != (int)'\n') {
-			(void)puts("Enter (Y/N)!");
-			while (getchar() != (int)'\n');
-		}
-		else {
-			if (ans == 'Y' || ans == 'y'){
-				if (remove(in) != 0) {
-					(void)puts("Unable to delete original file!");
-					return EOF;
-				}
-				break;
-			}
-			if (ans == 'N' || ans == 'n') break;
-			else (void)puts("Enter (Y/N)!");
-		}
-	}
-	return 0;
+
+	free(buff);
+	free(encr_buff);
+	free(e);
+	free(n);
 }

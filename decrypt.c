@@ -1,49 +1,69 @@
-#include <stdio.h>
+#include "crypt.h"
 
-static int OpenFiles(/*@out@*/ FILE **i, /*@out@*/ FILE **o, int argc, char *argv[]);
-static int CloseFiles(FILE **i, FILE **o);
+void transl_out(char* str, char* ch, char flag){		
+	const char alph[] = "0123456789abcdef";
 
-int main(int argc, char *argv[])
-{
-	FILE *in, *out;
-	if (OpenFiles(&in, &out, argc, argv) == EOF) return 1;
-	if (CloseFiles(&in, &out) == EOF) return 1;
-	return 0;
+	str[0] = strchr(alph, str[0]) - alph;
+	if (flag != 1){						//Если flag == 1, то на вход подаётся 1 символ
+		str[1] = strchr(alph, str[1]) - alph; 		//2 символа заменяются индексами в строке alph, затем склеиваются: 
+		*ch = (str[0] << 4 & 240) | str[1];		//младшие 4 бита 1-го символа = старшим 4-мя битам итог. , а младшие 2-го = младшим итог.
+	}
+	else
+		*ch = str[0];
 }
 
-static int OpenFiles(FILE ** i, FILE **o, int argc, char *argv[]){
-	char fn[200]; char* fname; *i = *o = NULL; 
+void decrypt_unit(char* buff, char* decr_buff, char* d, char* n, int key){
+	char flag = 0;
+	int buff_len;
+	int decr_len = key / 8 - 2;
 
-	fname = fn;
-	if (argc == 1) {
-		(void)puts("Enter address of encrypted file !");
-		(void)scanf("%s", fn);
-		argc++;
+	mod(buff, d, n);					//Расшифровываем блок
+	buff_len = strlen(buff) - 2;
+
+	while (buff_len >= 0){					//Переводим блок из 16-й СС, каждые 2 символа заменятся 1-и
+		transl_out(&buff[buff_len], &decr_buff[decr_len], flag);		
+		if ((buff_len -= 2) < 0){			//Если длина полученного блока < длины исходного блока, то оно дополняется 0
+			buff_len++;				//Если его длина - нечётное число, то блок также дополн. 0
+			flag = 1;				//Ппричём 1 оставшийся символ = символу, кот. получится в итоге склеивания
+		}
+		decr_len--;
 	}
-	else fname = argv[1];
-	if ((*i = fopen(fname, "rb")) == NULL){
-		(void)puts("Unable to open encrypted file!");
-		return EOF;
-	}
-	if (argc == 2) {
-		(void)puts("Enter name for decrypted file!");
-		(void)scanf("%s", fn);
-	}
-	else fname = argv[2];
-	if ((*o = fopen(fname, "wb")) == NULL){
-		(void)puts("Unable to create decrypted file!");
-		return EOF;
-	}
-	return 0;
 }
-static int CloseFiles(FILE **i, FILE **o){
-	if (fclose(*i) == EOF) {
-		(void)puts("Error during closing encrypted file");
-		return EOF;
+
+void decrypt(FILE * encr, FILE* decr, FILE* priv){
+	Header head;
+	char* d, *n, *buff, *decr_buff;
+	int block, key = MAX_LEN;
+
+	memory(d, key/ 4 + 2, char);
+	memory(n, key/ 4 + 2, char);
+	key_fr_file(priv, d, n, &key);				//Считываение ключа и его длины из файла, длина буфера устанавливается как для ключа по умолчанию
+
+	block = key / 8 - 1;
+
+	memory(buff, key/ 4 + 1, char);				//Выделение памяти для обычного и расшифрованного блока
+	memory(decr_buff, block + 1, char);
+
+	buff[key / 4] = 0;
+	
+
+	fread(&head, sizeof(Header), 1, encr);			//Считывание размера исходного файла
+
+	for (int i = 0; i < head.unit_num; i++){
+		memset(buff, '0', key / 4);
+		memset(decr_buff, 0, block);
+
+		fscanf(encr, "%s\n", buff);
+		decrypt_unit(buff, decr_buff, d, n, key);
+		if (i == head.unit_num - 1 && head.len_of_last != 0)
+			fwrite(&decr_buff[block - head.len_of_last], head.len_of_last * sizeof(char), 1, decr);
+		else						//Запись расшифрованного блока, в зависимости от того является ли он стандартным или последним
+			fwrite(decr_buff, block * sizeof(char), 1, decr);			
+		fflush(decr);					//Т.е. с размером head.len_of_last
 	}
-	if (fclose(*o) == EOF) {
-		(void)puts("Error during closing decrypted file");
-		return EOF;
-	}
-	return 0;
+
+	free(buff);
+	free(decr_buff);
+	free(d);
+	free(n);
 }
