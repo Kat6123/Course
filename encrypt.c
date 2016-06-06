@@ -1,13 +1,13 @@
 #include "crypt.h"
 
-void transl_in(char ch, char* str){
+static void transl_in(char ch, char* str){
 	const char alph[] = "0123456789abcdef";		//Один символ заменяется 2-мя следующим образом:
 							
 	str[0] = alph[(ch >> 4) & 15];			//Его страшие 4 бита = индекс в массиве alph 1-го получ-го символа
 	str[1] = alph[ch & 15];				//Его младшие 4 бита = индекс в массиве alph 2-го получ-го символа
 }
 
-void encrypt_unit(char* source, int num, char* encr, char* e, char* n, int key){
+static void encrypt_unit(char* source, int num, char* encr, char* e, char* n, int key){
 	int len = num;
 	int en_len = key / 4 - 2;
 
@@ -24,14 +24,14 @@ void encrypt(FILE * source, FILE* encr, FILE* pub){
 	char *e, *n, *buff, *encr_buff;
 	int num, block, key = MAX_LEN;
 
-	memory(e, MAX, char);				//Чтение ключа и его длины из файла, длина буфера устанавливается как для ключа по умолчанию
-	memory(n, key/ 4 + 2, char);			//Длина буфера для числа E = длина числа 65537 в 16-й СС + 2
+	MEMORY(e, MAX, char);				//Чтение ключа и его длины из файла, длина буфера устанавливается как для ключа по умолчанию
+	MEMORY(n, key/ 4 + 2, char);			//Длина буфера для числа E = длина числа 65537 в 16-й СС + 2
 	key_fr_file(pub, e, n, &key);			
 
 	block = key / 8 - 1;
 
-	memory(buff, block + 1, char);			
-	memory(encr_buff, key / 4 + 1, char);
+	MEMORY(buff, block + 1, char);			
+	MEMORY(encr_buff, key / 4 + 1, char);
 	
 	encr_buff[key / 4] = 0;
 

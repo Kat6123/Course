@@ -1,4 +1,5 @@
 #include "crypt.h"
+#include "parse.h"
 
 int main(int argc, char *argv[]){
 
@@ -8,9 +9,9 @@ int main(int argc, char *argv[]){
 
 	encrypt(srce, encr, public);
 	
-	close(srce);
-	close(encr);
-	close(public);
+	CLOSE(srce);
+	CLOSE(encr);
+	CLOSE(public);
 
 	return 0;
 }

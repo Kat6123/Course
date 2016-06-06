@@ -1,7 +1,8 @@
 #include "crypt.h"
+#include "parse.h"
 
-#define KNUM 10
-#define ER_M "Usage: %s [-o open key path] [-c close key path] [-l key length]\n"
+#define KNUM 10									//Система счисления, в которой вводится длина ключа
+#define ER_K_M "Usage: %s [-o open key path] [-c close key path] [-l key length]\n"
 
 void key_parse(int argc, char **argv, FILE** ifp, FILE** ofp, int* key);
 
@@ -14,8 +15,8 @@ int main(int argc, char *argv[])
 
 	keys(public, private, key);
 
-	close(public);
-	close(private);
+	CLOSE(public);
+	CLOSE(private);
 
 	return 0;
 }
@@ -24,17 +25,17 @@ void key_parse(int argc, char **argv, FILE** ifp, FILE** ofp, int* key){
 	int flag;
 
 	if (argc < 6){
-		printf(ER_M, argv[0]);	
+		printf(ER_K_M, argv[0]);	
 		exit(EXIT_FAILURE);
 	}
 	else {
 		while ((flag = getopt(argc, argv, "o:c:l:")) != -1){
 			switch (flag) {
 			case 'o':
-				open(*ifp, optarg, "wb");
+				OPEN(*ifp, optarg, "wb");
 				break;				
 			case 'c':
-				open(*ofp, optarg, "wb");
+				OPEN(*ofp, optarg, "wb");
 				break;	
 			case 'l':{
 				int l = strlen(optarg);
@@ -45,7 +46,7 @@ void key_parse(int argc, char **argv, FILE** ifp, FILE** ofp, int* key){
 			}				
 				break;	
 			default:						//Случай '?'
-				fprintf(stderr, ER_M, argv[0]);
+				fprintf(stderr, ER_K_M, argv[0]);
 				exit(EXIT_FAILURE);
 			}
 		}

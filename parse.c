@@ -1,6 +1,4 @@
-#include "crypt.h"
-
-#define ER_M "Usage: %s [-i input file path] [-o output file path] [-k key path]\n"
+#include "parse.h"
 
 void parse(int argc, char **argv, FILE** ifp, FILE** ofp, FILE** kfp){
 	int flag;
@@ -13,13 +11,13 @@ void parse(int argc, char **argv, FILE** ifp, FILE** ofp, FILE** kfp){
 		while ((flag = getopt(argc, argv, "i:o:k:")) != -1){
 			switch (flag) {
 			case 'i':						//Открывает файл-источник с адресом optarg для чтения
-				open(*ifp, optarg, "rb");
+				OPEN(*ifp, optarg, "rb");
 				break;				
 			case 'o':
-				open(*ofp, optarg, "wb");			//Открывает файл для записи с адресом optarg
+				OPEN(*ofp, optarg, "wb");			//Открывает файл для записи с адресом optarg
 				break;	
 			case 'k':
-				open(*kfp, optarg, "rb");			//Открывает файл с ключом и адресом optarg
+				OPEN(*kfp, optarg, "rb");			//Открывает файл с ключом и адресом optarg
 				break;	
 			default:						//Срабатывает в случае '?'
 				fprintf(stderr, ER_M, argv[0]);
