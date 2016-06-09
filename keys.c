@@ -1,6 +1,5 @@
-#include <gmp.h>
-#include <time.h>
 #include "crypt.h"
+#include <time.h>
 
 static void prime_num(char* arr){					//Используя "Решето Эратосфена" для нечётных чисел получим массив из 0 и 1
 	memset(arr, '1', PRIME / 2);					//Индексы которого будут задавать простые числа до PRIME
@@ -54,13 +53,14 @@ static char millerrabin(mpz_t num, char rep, int key){
 
 	for (i = 0; i < rep; i++){
 		random(a, key);						//Генерируем число a, длина которого в 2 раза меньше длины числа num
-		mpz_powm(a, a, d, num);					//Вычисляем a = a ^ d (mod num)
+		powm(a, a, d, num);					//Вычисляем a = a ^ d (mod num)
 
 		if (mpz_cmp_ui(a, 1) == 0 || mpz_cmp(a, p) == 0)	//Если a == 1 (mod num) или a == - 1 (mod num), то a - свидетель простоты числа num
 			continue;
 
 		for (j = 0; j < s - 1; j++){
-			mpz_powm_ui(a, a, 2, num);			//Вычисляем a = a ^ 2 (mod num)
+			mpz_mul(a, a, a);				//Вычисляем a = a ^ 2 (mod num)
+			mpz_mod(a, a, num);			
 
 			if (mpz_cmp_ui(a, 1) == 0){			//Если a == 1 (mod num), то a - свидетель составного числа num
 				flag = 0;
@@ -107,65 +107,73 @@ static void get_prime(mpz_t num, int key){
 	mpz_setbit(num, 0);						//Устанавливаем младший бит = 1, чтобы было нечётное число
 	while (probab_prime(num, prime, key / 4) != 1)			//Пока не пройдёт проверку на простоту, прибавляем 2
 		mpz_add_ui(num, num, 2);
-}
+}			
 
-static void key_gener(mpz_t e, mpz_t d, mpz_t n, int key){
-	mpz_t p, q, f;						
+static void key_gener(mpz_t e, mpz_t d, mpz_t p, mpz_t q, mpz_t n, int key){
+	mpz_t f;
 
-	mpz_init(p);
-	mpz_init(q);
 	mpz_init(f);
 
-	get_prime(p, key);						//Генерация простого числа 					
+	get_prime(p, key);						//Генерация простого числа 
 	mpz_nextprime(q, p);						//Получаем следующее за P простое число
 
-	mpz_mul(n, p, q);						//Находим N - произведение простых P и Q		
+	mpz_mul(n, p, q);						//Находим N - произведение простых P и Q
 	mpz_sub_ui(p, p, 1);
 	mpz_sub_ui(q, q, 1);
-	mpz_mul(f, p, q);						//Считаем функцию Эйлера для N			
+	mpz_mul(f, p, q);						//Считаем функцию Эйлера для N	
 
-	mpz_clear(p);
-	mpz_clear(q);
+	mpz_add_ui(p, p, 1);
+	mpz_add_ui(q, q, 1);
 
-	if (mpz_gcd_ui(NULL, f, E) == 1)				//Устанавл. E = 65537 -простое число, проверяем, чтобы было взаимно простым с ф. Эйлера	
-		mpz_set_ui(e, E);
+	if (mpz_gcd_ui(NULL, f, 65537) == 1)				//Устанавл. E = 65537 -простое число, проверяем, чтобы было взаимно простым с ф. Эйлера	
+		mpz_set_ui(e, 65537);
 	else{
 		puts("Try again!");
 		exit(EXIT_FAILURE);
 	}
-	mpz_invert(d, e, f);						//Находим D = E ^ (-1) mod F, гду F - ф. Эйлера	
+	invertm_prime(d, e, f);						//Находим D = E ^ (-1) mod F, гду F - ф. Эйлера	
 
 	mpz_clear(f);
-}			
+}
 
 void keys(FILE* public, FILE* private, int key){
-	mpz_t e, d, n;
+	mpz_t e, d, p, q, n;
 	char * str;
 
 	MEMORY(str, key / 4 + 2, char);
 
 	mpz_init(e);
 	mpz_init(d);
+	mpz_init(p);
+	mpz_init(q);
 	mpz_init(n);
 
-	key_gener(e, d, n, key);					//Генерируем ключи длиной key				
+	key_gener(e, d, p, q, n, key);					//Генерируем ключи длиной key	
 
-	mpz_get_str(str, NUM, e);					//Возвращаем представление ключа e в системе NUM в строку str		
+	mpz_get_str(str, NUM, e);					//Возвращаем представление ключа e в системе NUM в строку str	
 	fwrite(&key, sizeof(int), 1, public);				//Записываем размер ключа в битах
 	fwrite(str, strlen(str), 1, public);				//Записываем сами ключи, разделённые символом '\n'
 	fputc('\n', public);
+
+	mpz_get_str(str, NUM, n);
+	fwrite(str, strlen(str), 1, public);
 
 	mpz_get_str(str, NUM, d);
 	fwrite(&key, sizeof(int), 1, private);
 	fwrite(str, strlen(str), 1, private);
 	fputc('\n', private);
 
-	mpz_get_str(str, NUM, n);
-	fwrite(str, strlen(str), 1, public);
+	mpz_get_str(str, NUM, p);
+	fwrite(str, strlen(str), 1, private);
+	fputc('\n', private);
+
+	mpz_get_str(str, NUM, q);
 	fwrite(str, strlen(str), 1, private);
 
 	mpz_clear(e);
 	mpz_clear(d);
+	mpz_clear(p);
+	mpz_clear(q);
 	mpz_clear(n);
 
 	free(str);

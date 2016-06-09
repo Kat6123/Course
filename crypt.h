@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <gmp.h>
 
 #define MAX_LEN 2048								//Длина(по умолч.) ключа в битах						
 #define MAX 7									//Длина буфера, содержащего часть открытого ключа
@@ -28,13 +29,12 @@ typedef struct header{
 
 
 void decrypt(FILE * encr, FILE* decr, FILE* priv);
-
 void encrypt(FILE * source, FILE* encr, FILE* pub);
 
-
-void mod(char* s_cell, const char* s_exp, const char* s_mod);
+void powm(mpz_t res, const mpz_t base, const mpz_t exp, const mpz_t mod);
+void invertm_prime(mpz_t res, const mpz_t s_a, const mpz_t s_b);
 
 void key_fr_file(FILE* fp, char* e, char* n, int* key);
-
+void pr_key_fr_file(FILE* fp, char* d, char* p, char* q, int* key);
 
 void keys(FILE* public, FILE* private, int key);
